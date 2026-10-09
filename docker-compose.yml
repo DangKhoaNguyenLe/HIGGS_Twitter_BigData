@@ -1,0 +1,72 @@
+services:
+  # ==============================================================
+  # HDFS 1: HADOOP NAMENODE (Hadoop 3.2.1)
+  # Web UI: http://localhost:9870 | RPC Port: 8020
+  # ==============================================================
+  namenode:
+    image: bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
+    container_name: higgs_namenode
+    mem_limit: 640m
+    environment:
+      - CLUSTER_NAME=higgs
+      - HADOOP_HEAPSIZE_MAX=384m
+    env_file:
+      - ./hadoop.env
+    ports:
+      - "9870:9870"   # HDFS Web UI
+      - "8020:8020"   # HDFS RPC Port
+    volumes:
+      - namenode_data:/hadoop/dfs/name
+      - ./data/raw/higgs-activity_time.txt:/project/higgs-activity_time.txt:ro
+
+  # ==============================================================
+  # HDFS 2: HADOOP DATANODE (Hadoop 3.2.1)
+  # Web UI: http://localhost:9864
+  # ==============================================================
+  datanode:
+    image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
+    container_name: higgs_datanode
+    mem_limit: 640m
+    environment:
+      - SERVICE_PRECONDITION=namenode:9870
+      - HADOOP_HEAPSIZE_MAX=384m
+    env_file:
+      - ./hadoop.env
+    ports:
+      - "9864:9864"   # DataNode Web UI
+    volumes:
+      - datanode_data:/hadoop/dfs/data
+    depends_on:
+      - namenode
+
+  # ==============================================================
+  # MASTER ORCHESTRATOR: Chạy đồng loạt toàn bộ pipeline qua main.py
+  # Lệnh: docker compose run --rm higgs-analysis
+  # ==============================================================
+  higgs-analysis:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: higgs-analysis:latest
+    container_name: higgs_analysis_cli
+    command: python /app/main.py
+    mem_limit: 2300m
+    mem_reservation: 1024m
+    cpus: 2.0
+    environment:
+      - SPARK_DRIVER_MEMORY=1536m
+      - _JAVA_OPTIONS=-Xmx1536m -XX:+UseG1GC -XX:InitiatingHeapOccupancyPercent=35
+      - PYTHONUNBUFFERED=1
+      - HDFS_NAMENODE=hdfs://namenode:8020
+    volumes:
+      - ./main.py:/app/main.py
+      - ./src:/app/src
+      - ./data:/app/data
+      - ./output:/app/output
+    depends_on:
+      - namenode
+      - datanode
+
+volumes:
+  namenode_data:
+  datanode_data:

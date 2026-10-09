@@ -1,0 +1,12 @@
+
+
+[wsl2]
+
+memory=3GB
+
+swap=2GB
+
+processors=2
+
+
+autoMemoryReclaim=gradual
