@@ -26,9 +26,12 @@ higgs_docker/
     ├── config.py           # Thiết lập đường dẫn, hằng số & SparkSession chung
     ├── hdfs.py             # Nạp dữ liệu vào cụm Hadoop HDFS (raw & clean)
     ├── preprocess.py       # Tiền xử lý & lưu Parquet phân vùng vào HDFS
-    ├── hive.py             # HiveQL, Window LAG & tạo user_features.csv
+    ├── hive_analysis.hql   # Kịch bản HiveQL thuần chuẩn Apache Hive
+    ├── hive.py             # Điều phối HiveQL, Window LAG & tạo user_features.csv
     ├── visualize.py        # Biểu đồ tròn, biểu đồ ngày & cột giờ
     └── kmeans.py           # K-Means Baseline vs Log1p, PCA 2D, hồ sơ cụm
+├── run_hive_cli.bat        # Phím tắt mở terminal Apache Hive CLI (hive>)
+├── run_hive_script.bat     # Phím tắt chạy kịch bản hive_analysis.hql trên Hive Server
 ```
 
 ---
@@ -42,13 +45,15 @@ higgs_docker/
 | :--- | :--- | :--- | :--- |
 | **Lưu trữ phân tán (HDFS)** | **Apache Hadoop HDFS** | `3.2.1` | Hệ thống tệp phân tán lưu trữ toàn bộ dữ liệu thô (raw) và dữ liệu đã làm sạch (clean) với kiến trúc Master-Worker (`NameNode` và `DataNode`). |
 | **Định dạng dữ liệu** | **Apache Parquet** | `Snappy` | Lưu trữ dạng cột (Columnar format) phân vùng theo ngày (`dt`), tối ưu hóa I/O và tăng tốc truy vấn phân tích. |
+| **Kho dữ liệu & Metastore** | **Apache Hive (Native)** | `2.3.2` | Gồm cụm 3 container: `PostgreSQL Metastore DB`, `Hive Metastore Service` (port 9083) và `HiveServer2` (port 10000). Hỗ trợ Hive CLI, Beeline và truy vấn trực tiếp Parquet trên HDFS. |
+| **Ngôn ngữ truy vấn** | **HiveQL (`.hql`)** | `HQL 2.3+` | Kịch bản `src/hive_analysis.hql` định nghĩa DDL Database, Table phân vùng, MSCK Repair, hàm Window (`LAG`), CTAS tạo `user_features`. |
 | **Xử lý phân tán** | **Apache Spark (PySpark)** | `3.5.0` | Tính toán in-memory phân tán, tiền xử lý, kiểm tra tính toàn vẹn, chuẩn hóa timestamp và ghi dữ liệu phân vùng vào HDFS. |
-| **Kho dữ liệu & Truy vấn** | **Apache Hive (HiveQL / Spark SQL)** | `3.5.0 Metastore` | Đăng ký Database `higgs` và Table `activity` trỏ tới Parquet trên HDFS; thực thi truy vấn phân tích, Window Function (`LAG`), tổng hợp hành vi người dùng. |
 | **Học máy & Khai phá dữ liệu** | **Scikit-Learn** | `>=1.3.0` | Huấn luyện thuật toán phân cụm **K-Means**, chuẩn hóa `StandardScaler`, đánh giá $K \in [2, 8]$ (Elbow, Silhouette, Calinski-Harabasz, Davies-Bouldin), và giảm chiều dữ liệu bằng **PCA (2D)**. *(Tự động kích hoạt GPU cuML nếu có)*. |
 | **Xử lý dữ liệu bảng** | **Pandas & PyArrow** | `Pandas >= 2.0`<br>`PyArrow >= 12.0` | Chuyển đổi zero-copy giữa Spark DataFrame và Python runtime, trích xuất dữ liệu ma trận đặc trưng người dùng và xuất file báo cáo. |
 | **Trực quan hóa dữ liệu** | **Matplotlib & Seaborn** | `Matplotlib >= 3.7`<br>`Seaborn >= 0.12` | Vẽ tự động 9 biểu đồ trực quan hóa dữ liệu thống kê và mô hình phân cụm ở độ phân giải cao (300 DPI, backend `Agg`). |
-| **Đóng gói & Ảo hóa** | **Docker & Docker Compose** | `Compose v2` | Cô lập môi trường chạy cụm Hadoop HDFS và ứng dụng Spark; quản lý RAM/CPU, biến môi trường và volume tự động. |
-| **Môi trường chạy Java** | **OpenJDK (Java 8)** | `HotSpot 8u` | Runtime nền tảng cho Hadoop NameNode/DataNode và JVM của Apache Spark. Tối ưu bộ nhớ bằng G1GC (`-XX:+UseG1GC`). |
+| **Đóng gói & Ảo hóa** | **Docker & Docker Compose** | `Compose v2` | Cô lập môi trường chạy cụm Hadoop HDFS, cụm Apache Hive và ứng dụng Spark; quản lý RAM/CPU, biến môi trường và volume tự động. |
+| **Môi trường chạy Java** | **OpenJDK (Java 8)** | `HotSpot 8u` | Runtime nền tảng cho Hadoop NameNode/DataNode, Hive Server và JVM của Apache Spark. Tối ưu bộ nhớ bằng G1GC (`-XX:+UseG1GC`). |
+
 
 ---
 
@@ -125,6 +130,25 @@ docker compose run --rm higgs-analysis python /app/main.py --step hive
 docker compose run --rm higgs-analysis python /app/main.py --step viz
 docker compose run --rm higgs-analysis python /app/main.py --step kmeans
 ```
+
+---
+
+### Cách 3: Sử dụng Apache Hive Native (Hive CLI & HiveQL Script)
+Bạn có thể thao tác và chạy truy vấn HiveQL trực tiếp trên container **`higgs_hive_server`**:
+1. **Chạy toàn bộ kịch bản HiveQL (`src/hive_analysis.hql`)**:
+   - Nhấp đúp vào file [`run_hive_script.bat`](run_hive_script.bat).
+   - Hoặc chạy qua dòng lệnh:
+     ```powershell
+     docker compose exec hive-server hive -f /project/src/hive_analysis.hql
+     ```
+2. **Mở terminal Apache Hive CLI tương tác (`hive>`)**:
+   - Nhấp đúp vào file [`run_hive_cli.bat`](run_hive_cli.bat).
+   - Hoặc chạy qua dòng lệnh:
+     ```powershell
+     docker compose exec -it hive-server hive
+     ```
+     *(Trong giao diện `hive>`, bạn có thể gõ trực tiếp các lệnh như: `USE higgs; SHOW TABLES; SELECT * FROM activity LIMIT 5;`)*
+
 
 ---
 

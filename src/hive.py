@@ -15,6 +15,8 @@ from config import (
     print_banner, get_spark_session
 )
 
+HQL_FILE = Path(__file__).resolve().parent / "hive_analysis.hql"
+
 USER_FEATURE_COLS = [
     'user_id', 'total_interactions', 'retweet_count', 'mention_count',
     'reply_count', 'unique_targets', 'active_days', 'active_hours'
@@ -22,6 +24,8 @@ USER_FEATURE_COLS = [
 
 def run_hive(spark=None, clean_path=None):
     print_banner("XÂY DỰNG DỮ LIỆU VÀ PHÂN TÍCH BẰNG HIVEQL")
+    print(f"-> Kịch bản HiveQL chuẩn (Apache Hive): {HQL_FILE.name}")
+    print("   (Có thể chạy trực tiếp trên Apache Hive Native qua 'run_hive_script.bat' hoặc 'run_hive_cli.bat')")
 
     stop_spark = False
     if spark is None:
@@ -64,13 +68,17 @@ def run_hive(spark=None, clean_path=None):
     print("--- Tỷ lệ phân bố các loại tương tác ---")
     df_type = spark.sql('''
         SELECT type_name,
-               COUNT(*) AS so_luong,
-               ROUND(100.0 * COUNT(*) / SUM(COUNT(*)) OVER (), 2) AS ty_le_phan_tram
-        FROM activity
-        GROUP BY type_name
+               so_luong,
+               ROUND(100.0 * so_luong / SUM(so_luong) OVER (), 2) AS ty_le_phan_tram
+        FROM (
+            SELECT type_name, COUNT(*) AS so_luong
+            FROM activity
+            GROUP BY type_name
+        ) sub
         ORDER BY so_luong DESC
     ''')
     df_type.show()
+
 
     # [3.6.2] Theo thời gian
     print("--- Tương tác theo từng ngày ---")

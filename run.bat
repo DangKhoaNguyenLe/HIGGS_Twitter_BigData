@@ -30,6 +30,10 @@ echo.
 echo ======================================================================
 echo [3/3] HOAN TAT DONG LOAT TAT CA CAC MODULE THANH CONG!
 echo - HDFS Web UI theo doi file    : http://localhost:9870
+echo - Apache Hive Server 2 (Port)  : localhost:10000 (JDBC/Beeline)
+echo - HiveQL Script file           : src\hive_analysis.hql
+echo - Chay Hive CLI tuong tac      : nhap dup 'run_hive_cli.bat'
+echo - Chay HiveQL tren Hive Native : nhap dup 'run_hive_script.bat'
 echo - Toan bo bieu do PNG da luu   : output\charts\
 echo - Toan bo file du lieu CSV luu : output\
 echo - Bao cao tong hop markdown    : output\summary_report.md

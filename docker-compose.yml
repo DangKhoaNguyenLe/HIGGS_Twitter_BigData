@@ -40,6 +40,60 @@ services:
       - namenode
 
   # ==============================================================
+  # HIVE 1: METASTORE POSTGRESQL DATABASE
+  # ==============================================================
+  hive-metastore-postgresql:
+    image: bde2020/hive-metastore-postgresql:2.3.0
+    container_name: higgs_hive_metastore_db
+    mem_limit: 256m
+    volumes:
+      - metastore_db_data:/var/lib/postgresql/data
+
+
+  # ==============================================================
+  # HIVE 2: HIVE METASTORE SERVICE
+  # Port: 9083
+  # ==============================================================
+  hive-metastore:
+    image: bde2020/hive:2.3.2-postgresql-metastore
+    container_name: higgs_hive_metastore
+    mem_limit: 512m
+    env_file:
+      - ./hadoop.env
+    command: /opt/hive/bin/hive --service metastore
+    environment:
+      - SERVICE_PRECONDITION=namenode:8020 datanode:9864 hive-metastore-postgresql:5432
+    ports:
+      - "9083:9083"
+    depends_on:
+      - namenode
+      - datanode
+      - hive-metastore-postgresql
+
+  # ==============================================================
+  # HIVE 3: HIVE SERVER 2 (HIVEQL ENGINE & CLI)
+  # Port: 10000 (JDBC/Beeline) | Web UI: 10002
+  # ==============================================================
+  hive-server:
+    image: bde2020/hive:2.3.2-postgresql-metastore
+    container_name: higgs_hive_server
+    mem_limit: 768m
+    env_file:
+      - ./hadoop.env
+    environment:
+      - HIVE_CORE_CONF_javax_jdo_option_ConnectionURL=jdbc:postgresql://hive-metastore-postgresql:5432/metastore
+      - SERVICE_PRECONDITION=hive-metastore:9083
+    ports:
+      - "10000:10000"
+      - "10002:10002"
+    volumes:
+      - ./src:/project/src
+      - ./data:/project/data
+      - ./output:/project/output
+    depends_on:
+      - hive-metastore
+
+  # ==============================================================
   # MASTER ORCHESTRATOR: Chạy đồng loạt toàn bộ pipeline qua main.py
   # Lệnh: docker compose run --rm higgs-analysis
   # ==============================================================
@@ -66,7 +120,10 @@ services:
     depends_on:
       - namenode
       - datanode
+      - hive-server
 
 volumes:
   namenode_data:
   datanode_data:
+  metastore_db_data:
+
